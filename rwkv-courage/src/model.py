@@ -156,14 +156,16 @@ class RWKV_Tmix_x070(nn.Module):
         k = k * (1 + (a - 1) * self.k_a)
 
         # 8. Core WKV operator (the O(n) attention replacement)
+        # Compute decay: exp(-exp(w)) — matches official RWKV-7 non-CUDA path
+        w_decay = torch.exp(-torch.exp(w.view(B, T, H, N).float()))
         x = wkv7_forward(
-            r.view(B, T, H, N),
-            -torch.exp(w.view(B, T, H, N)),  # convert to exp(-exp(w))
-            k.view(B, T, H, N),
-            v.view(B, T, H, N),
-            a.view(B, T, H, N),
-            (kk * a).view(B, T, H, N),
-        ).view(B, T, C)
+            r.view(B, T, H, N).float(),
+            w_decay,
+            k.view(B, T, H, N).float(),
+            v.view(B, T, H, N).float(),
+            a.view(B, T, H, N).float(),
+            (kk * a).view(B, T, H, N).float(),
+        ).view(B, T, C).to(x.dtype)
 
         # 9. Layer normalization
         x = self.ln_x(x.view(B * T, C)).view(B, T, C)
@@ -303,8 +305,9 @@ class CourageLM(nn.Module):
         for _ in range(max_new_tokens):
             # Crop to context length
             idx_cond = idx[:, -self.config.ctx_len:]
-            # Forward pass
-            logits = self(idx_cond)
+            # Forward pass (no grad for inference efficiency)
+            with torch.no_grad():
+                logits = self(idx_cond)
             # Last timestep logits
             logits = logits[:, -1, :] / temperature
             # Sample

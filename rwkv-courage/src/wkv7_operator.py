@@ -13,7 +13,6 @@ License: Apache 2.0 (inherited from RWKV-LM)
 """
 
 import torch
-import torch.nn.functional as F
 
 
 def wkv7_forward(
@@ -35,7 +34,7 @@ def wkv7_forward(
     
     Args:
         r: receptance vector (B, T, H, N)
-        w: decay weights (B, T, H, N)
+        w: decay weights (B, T, H, N) — ALREADY transformed: exp(-exp(w_raw))
         k: key vectors (B, T, H, N)
         v: value vectors (B, T, H, N)
         a: in-context learning rate (B, T, H, N)
@@ -78,43 +77,3 @@ def wkv7_forward(
         out[:, t, :] = (state @ rr).view(B, H, N)
     
     return out
-
-
-def compute_wkv(
-    r: torch.Tensor, w_raw: torch.Tensor, k: torch.Tensor,
-    v: torch.Tensor, a: torch.Tensor, b: torch.Tensor
-) -> torch.Tensor:
-    """
-    High-level WKV compute with pre-processing.
-    
-    This is what the model calls: it reshapes inputs, computes decay,
-    and delegates to wkv7_forward.
-    
-    Args:
-        r: receptance (B, T, C)
-        w_raw: raw decay weights (B, T, C) — will be transformed via exp(-exp(w))
-        k: key (B, T, C)
-        v: value (B, T, C)
-        a: in-context learning rate (B, T, C)
-        b: auxiliary (B, T, C)
-    
-    Returns:
-        output (B, T, C)
-    """
-    B, T, C = r.shape
-    H = C // 64  # head_size is always 64 for RWKV-7
-    N = 64
-    
-    # Reshape to (B, T, H, N)
-    r = r.view(B, T, H, N)
-    k = k.view(B, T, H, N)
-    v = v.view(B, T, H, N)
-    a = a.view(B, T, H, N)
-    b = b.view(B, T, H, N)
-    
-    # Transform raw decay: w = exp(-exp(w_raw))
-    # This soft-clamps decay to (0, 1) range
-    w = torch.exp(-torch.exp(w_raw.view(B, T, H, N)))
-    
-    result = wkv7_forward(r, w, k, v, a, b)
-    return result.view(B, T, C)

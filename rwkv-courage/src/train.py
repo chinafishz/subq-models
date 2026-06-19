@@ -85,7 +85,7 @@ def load_checkpoint(
     return checkpoint.get("step", 0)
 
 
-def train(config_path: str):
+def train(config_path: str, resume_from: Optional[str] = None):
     """Main training function."""
     # --- Load config ---
     cfg = load_config(config_path)
@@ -133,7 +133,7 @@ def train(config_path: str):
     # --- Resume from checkpoint ---
     start_step = 0
     checkpoint_dir = cfg.get("checkpoint_dir", "checkpoints")
-    resume = cfg.get("resume_from")
+    resume = resume_from or cfg.get("resume_from")
     if resume and os.path.exists(resume):
         start_step = load_checkpoint(resume, model, optimizer)
         print(f"Resumed from step {start_step}")
@@ -227,10 +227,7 @@ def train(config_path: str):
         if step % save_interval == 0:
             save_checkpoint(model, optimizer, step, total_loss / max(1, log_interval),
                           checkpoint_dir)
-            # Also save latest
-            save_checkpoint(model, optimizer, step, total_loss / max(1, log_interval),
-                          checkpoint_dir)
-            # Overwrite 'latest.pt'
+            # Also save 'latest.pt' for easy resume
             latest_path = os.path.join(checkpoint_dir, "latest.pt")
             checkpoint = {
                 "step": step,
@@ -261,4 +258,4 @@ if __name__ == "__main__":
                         help="Resume from checkpoint path")
     args = parser.parse_args()
 
-    train(config_path=args.config)
+    train(config_path=args.config, resume_from=args.resume)
