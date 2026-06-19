@@ -149,6 +149,7 @@ def train(config_path: str, resume_from: Optional[str] = None):
     model.train()
     step = start_step
     total_loss = 0.0
+    last_avg_loss = float("inf")  # tracked for checkpoint metadata
     best_loss = float("inf")
     t0 = time.time()
 
@@ -188,6 +189,13 @@ def train(config_path: str, resume_from: Optional[str] = None):
             y.view(-1),
             ignore_index=tokenizer.token_to_id("[PAD]") or -100,
         )
+
+        # NaN guard: abort training if loss becomes non-finite
+        if not torch.isfinite(loss):
+            print(f"ERROR: Non-finite loss ({loss.item()}) at step {step}. Aborting.")
+            save_checkpoint(model, optimizer, step, float("nan"), checkpoint_dir)
+            break
+
         loss = loss / grad_accum
         loss.backward()
 
@@ -205,6 +213,7 @@ def train(config_path: str, resume_from: Optional[str] = None):
         log_interval = train_cfg.get("log_interval", 50)
         if step % log_interval == 0:
             avg_loss = total_loss / log_interval
+            last_avg_loss = avg_loss  # capture before reset, for checkpoint metadata
             elapsed = time.time() - t0
             tokens_per_sec = (log_interval * model_cfg.ctx_len * batch_size) / elapsed
 
@@ -225,13 +234,13 @@ def train(config_path: str, resume_from: Optional[str] = None):
         # --- Save checkpoint ---
         save_interval = train_cfg.get("save_interval", 1000)
         if step % save_interval == 0:
-            save_checkpoint(model, optimizer, step, total_loss / max(1, log_interval),
+            save_checkpoint(model, optimizer, step, last_avg_loss,
                           checkpoint_dir)
             # Also save 'latest.pt' for easy resume
             latest_path = os.path.join(checkpoint_dir, "latest.pt")
             checkpoint = {
                 "step": step,
-                "loss": total_loss / max(1, log_interval),
+                "loss": last_avg_loss,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "config": {k: v for k, v in model.config.__dict__.items()
