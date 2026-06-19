@@ -1,0 +1,43 @@
+# RWKV-Courage 25M Model Configuration
+# Adapted from RWKV-7 "Goose" architecture
+
+model:
+  name: "courage-25m"
+  n_embd: 384          # embedding dimension
+  n_layer: 8           # number of layers
+  vocab_size: 8000     # custom BPE tokenizer vocab
+  ctx_len: 4096        # context length (tokens)
+  head_size_a: 64      # attention head size (do not change)
+
+  # LORA dimensions for RWKV-7 operators
+  # Scaled down from official 0.1B config (~4x smaller model)
+  D_DECAY_LORA: 32     # w: decay lora dim (official 0.1B: 64)
+  D_AAA_LORA: 32       # a: in-context learning rate lora dim
+  D_MV_LORA: 16        # v: value residual lora dim (official 0.1B: 32)
+  D_GATE_LORA: 64      # g: gate lora dim (official 0.1B: 128)
+
+training:
+  batch_size: 4
+  gradient_accumulation_steps: 8  # effective batch = 32
+  learning_rate: 3.0e-4
+  min_lr: 3.0e-5
+  warmup_steps: 500
+  max_steps: 10000               # TinyStories phase (expand for FineWeb-Edu)
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+
+  # Data mixing (phase 1: TinyStories)
+  data_mix:
+    tinystories: 0.85
+    courage_material: 0.15
+
+  # Logging
+  log_interval: 50
+  save_interval: 1000
+  eval_interval: 500
+
+  # MPS / CPU compatible
+  dtype: "float32"
+  device: "mps"  # auto-detect: mps > cuda > cpu

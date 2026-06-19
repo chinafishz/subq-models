@@ -1,0 +1,8 @@
+# RWKV-Courage: 微型勇氣語言模型訓練環境
+torch>=2.0.0
+tokenizers>=0.19.0
+datasets>=2.19.0
+numpy>=1.24.0
+tqdm>=4.66.0
+pyyaml>=6.0
+wandb>=0.17.0
