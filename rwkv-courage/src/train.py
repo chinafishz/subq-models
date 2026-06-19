@@ -151,42 +151,39 @@ def train(config_path: str, resume_from: Optional[str] = None):
     total_loss = 0.0
     last_avg_loss = float("inf")  # tracked for checkpoint metadata
     best_loss = float("inf")
+    lr = base_lr  # initial LR, updated per optimizer step
     t0 = time.time()
+
+    # Track optimizer steps separately from micro-steps for LR schedule
+    opt_step = start_step
+    optimizer.zero_grad()
 
     print(f"\nTraining: batch_size={batch_size}, grad_accum={grad_accum}")
     print(f"  Effective batch = {batch_size * grad_accum}")
-    print(f"  Max steps = {max_steps}\n")
+    print(f"  Max steps = {max_steps} (optimizer updates)\n")
 
-    optimizer.zero_grad()
+    # Pre-allocate batch tensors
+    x_batch = torch.zeros(batch_size, model_cfg.ctx_len, dtype=torch.long, device=device)
+    y_batch = torch.zeros(batch_size, model_cfg.ctx_len, dtype=torch.long, device=device)
 
     while step < max_steps:
         step += 1
 
-        # --- Learning rate schedule (cosine with warmup) ---
-        if step < warmup_steps:
-            lr = base_lr * step / warmup_steps
-        else:
-            progress = (step - warmup_steps) / max(1, max_steps - warmup_steps)
-            lr = min_lr + (base_lr - min_lr) * 0.5 * (1 + math.cos(math.pi * progress))
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = lr
-
-        # --- Get batch ---
-        try:
-            seq = next(data_stream)
-        except StopIteration:
-            data_stream = dataset.stream_tokens(courage_path)
-            seq = next(data_stream)
-
-        # seq shape: (seq_len+1,) -> split into input/target
-        x = seq[:-1].view(1, -1).to(device)  # (1, seq_len)
-        y = seq[1:].view(1, -1).to(device)   # (1, seq_len)
+        # --- Get batch of sequences ---
+        for b in range(batch_size):
+            try:
+                seq = next(data_stream)
+            except StopIteration:
+                data_stream = dataset.stream_tokens(courage_path)
+                seq = next(data_stream)
+            x_batch[b] = seq[:-1].to(device)
+            y_batch[b] = seq[1:].to(device)
 
         # --- Forward ---
-        logits = model(x)                     # (1, seq_len, vocab_size)
+        logits = model(x_batch)                # (B, seq_len, vocab_size)
         loss = F.cross_entropy(
             logits.view(-1, logits.size(-1)),
-            y.view(-1),
+            y_batch.view(-1),
             ignore_index=tokenizer.token_to_id("[PAD]") or -100,
         )
 
@@ -201,6 +198,17 @@ def train(config_path: str, resume_from: Optional[str] = None):
 
         # --- Gradient accumulation ---
         if step % grad_accum == 0:
+            opt_step += 1
+
+            # --- Learning rate schedule (cosine with warmup, per optimizer step) ---
+            if opt_step < warmup_steps:
+                lr = base_lr * opt_step / warmup_steps
+            else:
+                progress = (opt_step - warmup_steps) / max(1, max_steps - warmup_steps)
+                lr = min_lr + (base_lr - min_lr) * 0.5 * (1 + math.cos(math.pi * progress))
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr
+
             # Gradient clipping
             if train_cfg.get("grad_clip", 0) > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), train_cfg["grad_clip"])

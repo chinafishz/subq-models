@@ -157,14 +157,17 @@ class RWKV_Tmix_x070(nn.Module):
 
         # 8. Core WKV operator (the O(n) attention replacement)
         # Compute decay: exp(-exp(w)) — matches official RWKV-7 non-CUDA path
+        #   Official call: RWKV7_OP(r, w, k, v, -kk, kk*a)
+        #   - 5th arg (-kk): key-dependent removal term for Delta Rule
+        #   - 6th arg (kk*a): modulated auxiliary term
         w_decay = torch.exp(-torch.exp(w.view(B, T, H, N).float()))
         x = wkv7_forward(
             r.view(B, T, H, N).float(),
             w_decay,
             k.view(B, T, H, N).float(),
             v.view(B, T, H, N).float(),
-            a.view(B, T, H, N).float(),
-            (kk * a).view(B, T, H, N).float(),
+            (-kk).view(B, T, H, N).float(),         # -kk: removal term (NOT a)
+            (kk * a).view(B, T, H, N).float(),      # kk * a: modulated auxiliary
         ).view(B, T, C).to(x.dtype)
 
         # 9. Layer normalization
