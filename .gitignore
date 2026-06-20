@@ -1,7 +1,12 @@
+# macOS 系统文件（Finder 生成的隐藏元数据）
 .DS_Store
 
-# Large model files
+# 大型模型文件（几张 GB，不适合 git 管理）
+# PyTorch 模型检查点
 *.pt
+# PyTorch 另一种扩展名
 *.pth
+# 通用 checkpoint 文件
 *.ckpt
+# PDF 论文/文档（大文件）
 *.pdf

@@ -1,8 +1,8 @@
-# RWKV-Courage: 微型勇氣語言模型訓練環境
-torch>=2.0.0
-tokenizers>=0.19.0
-datasets>=2.19.0
-numpy>=1.24.0
-tqdm>=4.66.0
-pyyaml>=6.0
-wandb>=0.17.0
+# RWKV-Courage: 微型勇气语言模型训练所需 Python 依赖包
+torch>=2.0.0  # PyTorch 深度学习框架：提供张量计算、自动求导和 GPU/MPS 加速（最低 2.0 版本）
+tokenizers>=0.19.0  # HuggingFace Tokenizers 库：用于训练和使用 BPE 分词器（将文本转换为 token ID）
+datasets>=2.19.0  # HuggingFace Datasets 库：用于加载和处理训练数据集（如 TinyStories 流式加载）
+numpy>=1.24.0  # NumPy 数值计算库：提供高效的数组操作和数学函数（被 PyTorch 内部依赖）
+tqdm>=4.66.0  # tqdm 进度条库：在数据预处理和训练时显示可视化的进度条
+pyyaml>=6.0  # PyYAML 解析库：用于读取和解析 YAML 格式的配置文件（如 courage_25m.yaml）
+wandb>=0.17.0  # Weights & Biases 实验跟踪平台客户端：记录训练指标、模型权重和超参数到云端

@@ -1,43 +1,43 @@
-# RWKV-Courage 25M Model Configuration
-# Adapted from RWKV-7 "Goose" architecture
+# RWKV-Courage 25M 模型配置文件（YAML 格式）
+# 基于 RWKV-7 "Goose" 架构改编
 
-model:
-  name: "courage-25m"
-  n_embd: 384          # embedding dimension
-  n_layer: 8           # number of layers
-  vocab_size: 8000     # custom BPE tokenizer vocab
-  ctx_len: 4096        # context length (tokens)
-  head_size_a: 64      # attention head size (do not change)
+model:  # 模型结构参数定义
+  name: "courage-25m"  # 模型名称：勇气（courage）25M 参数版本
+  n_embd: 384          # 嵌入维度（embedding dimension）：每个 token 的表征向量长度
+  n_layer: 8           # Transformer 层数（number of layers）：总共 8 层 RWKV 块
+  vocab_size: 8000     # 词表大小：自定义 BPE 分词器的词汇量（8000 个 token）
+  ctx_len: 4096        # 上下文长度（context length）：模型一次能处理的最大 token 数
+  head_size_a: 64      # 注意力头大小（attention head size）：RWKV 内部参数，保持默认 64 不变
 
-  # LORA dimensions for RWKV-7 operators
-  # Scaled down from official 0.1B config (~4x smaller model)
-  D_DECAY_LORA: 32     # w: decay lora dim (official 0.1B: 64)
-  D_AAA_LORA: 32       # a: in-context learning rate lora dim
-  D_MV_LORA: 16        # v: value residual lora dim (official 0.1B: 32)
-  D_GATE_LORA: 64      # g: gate lora dim (official 0.1B: 128)
+  # RWKV-7 算子中的 LORA 低秩分解维度
+  # 以下参数基于官方 0.1B 配置按比例缩小（本模型参数量约为其 1/4）
+  D_DECAY_LORA: 32     # w 衰减矩阵的 LORA 维度（官方 0.1B 配置为 64，这里减半）
+  D_AAA_LORA: 32       # a 上下文学习率矩阵的 LORA 维度（控制 token 间信息衰减速率）
+  D_MV_LORA: 16        # v 值残差矩阵的 LORA 维度（官方 0.1B 配置为 32，这里减半）
+  D_GATE_LORA: 64      # g 门控矩阵的 LORA 维度（官方 0.1B 配置为 128，这里减半）
 
-training:
-  batch_size: 4
-  gradient_accumulation_steps: 8  # effective batch = 32
-  learning_rate: 3.0e-4
-  min_lr: 3.0e-5
-  warmup_steps: 500
-  max_steps: 10000               # TinyStories phase (expand for FineWeb-Edu)
-  weight_decay: 0.1
-  beta1: 0.9
-  beta2: 0.95
-  grad_clip: 1.0
+training:  # 训练超参数定义
+  batch_size: 4  # 每张卡/每次前向的批次大小（单次处理的样本数）
+  gradient_accumulation_steps: 8  # 梯度累积步数：有效批次大小 = batch_size × 累积步数 = 4 × 8 = 32
+  learning_rate: 3.0e-4  # 初始学习率（AdamW 优化器的峰值学习率）
+  min_lr: 3.0e-5  # 最小学习率（余弦退火衰减的目标底值，为峰值的 1/10）
+  warmup_steps: 500  # 预热步数：前 500 步学习率从 0 线性增加到峰值
+  max_steps: 10000  # 最大训练步数：TinyStories 阶段的上限（后续 FineWeb-Edu 阶段可调大）
+  weight_decay: 0.1  # 权重衰减系数（L2 正则化强度，防止过拟合）
+  beta1: 0.9  # AdamW 优化器的 β₁ 参数（一阶矩估计的指数衰减率）
+  beta2: 0.95  # AdamW 优化器的 β₂ 参数（二阶矩估计的指数衰减率）
+  grad_clip: 1.0  # 梯度裁剪阈值：梯度范数超过 1.0 时按比例缩放
 
-  # Data mixing (phase 1: TinyStories)
-  data_mix:
-    tinystories: 0.85
-    courage_material: 0.15
+  # 数据混合比例（第一阶段：TinyStories 为主）
+  data_mix:  # 训练数据混合权重配置
+    tinystories: 0.85  # TinyStories 数据集占比 85%（主要训练语料——儿童故事）
+    courage_material: 0.15  # 勇气素材占比 15%（自定义数码宝贝哲学文本）
 
-  # Logging
-  log_interval: 50
-  save_interval: 1000
-  eval_interval: 500
+  # 日志与保存频率
+  log_interval: 50  # 日志记录间隔：每 50 步输出一次训练指标（loss、lr 等）
+  save_interval: 1000  # 模型保存间隔：每 1000 步保存一次 checkpoint
+  eval_interval: 500  # 评估间隔：每 500 步在验证集上评估一次模型性能
 
-  # MPS / CPU compatible
-  dtype: "float32"
-  device: "mps"  # auto-detect: mps > cuda > cpu
+  # 兼容性设置（MPS / CPU 均可运行）
+  dtype: "float32"  # 计算精度：使用 float32 以兼容 MPS（Apple Silicon GPU）和 CPU
+  device: "mps"  # 运行设备：优先使用 MPS（Apple GPU），其次 CUDA（NVIDIA GPU），最后 CPU
