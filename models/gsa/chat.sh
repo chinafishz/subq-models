@@ -82,9 +82,9 @@ from tokenizers import Tokenizer
 
 # ── 加载模型检查点 ──
 # torch.load: 反序列化 .pt 文件
-#   map_location='cpu': 强制加载到 CPU（无论原来训练在什么设备上）
+#   map_location='mps': 直接加载到 Apple Silicon GPU 内存，避免 CPU→MPS 二次搬运
 #   weights_only=False: 允许加载非权重数据（config、optimizer state 等）
-ckpt = torch.load('checkpoints_gsa/final.pt', map_location='cpu', weights_only=False)
+ckpt = torch.load('checkpoints_gsa/final.pt', map_location='mps', weights_only=False)
 
 # ── 重建模型配置 ──
 # ckpt['config']: 训练时保存的配置字典
@@ -181,8 +181,8 @@ import torch
 from model_gsa import GSA_Config, GSALanguageModel
 from tokenizers import Tokenizer
 
-# 加载模型（与 chat 模式相同的流程）
-ckpt = torch.load('checkpoints_gsa/final.pt', map_location='cpu', weights_only=False)
+# 加载模型（与 chat 模式相同的流程，直接加载到 MPS 避免搬运开销）
+ckpt = torch.load('checkpoints_gsa/final.pt', map_location='mps', weights_only=False)
 cfg = GSA_Config({**ckpt['config'], 'ctx_len': 256})
 m = GSALanguageModel(cfg)
 m.load_state_dict(ckpt['model_state_dict'])
